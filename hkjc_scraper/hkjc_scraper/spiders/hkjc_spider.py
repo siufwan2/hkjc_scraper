@@ -19,9 +19,9 @@ class HKJC_Spider(scrapy.Spider):
 
         ''' Step 2: form race date urls list to scrape '''
         today = datetime.now()
-        past_1_yr = [(today - relativedelta(days=i + 1)) for i in range(365)]
+        past_X_days = [(today - relativedelta(days=i + 1)) for i in range(config['output']['past_x_day'])]
         self.race_date_urls = [
-            {date.strftime("%Y_%m_%d"): f"{self.race_base_url}?RaceDate={date.strftime('%Y/%m/%d')}"} for date in past_1_yr
+            {date.strftime("%Y_%m_%d"): f"{self.race_base_url}?RaceDate={date.strftime('%Y/%m/%d')}"} for date in past_X_days
         ]
 
     def start_requests(self):
