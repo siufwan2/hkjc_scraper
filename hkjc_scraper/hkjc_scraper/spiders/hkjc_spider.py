@@ -92,77 +92,96 @@ class HKJC_Spider(scrapy.Spider):
                 all_race = [f"{self.race_href_base_url}/{prefix}" \
                             for prefix in race_num_table.css('a::attr(href)').getall() \
                             if re.search(r"Racecourse=(ST|HV)&RaceNo=(\d+)", prefix)] # Monitor only Sha Tin and Happy Valley
-                
-                first_race_url = re.sub(r"RaceNo=(\d+)", 'RaceNo=1', all_race[0])
-                all_race.insert(0, first_race_url) # Add the first race bk for better formating and understanding
+                if all_race:
+                    first_race_url = re.sub(r"RaceNo=(\d+)", 'RaceNo=1', all_race[0])
+                    all_race.insert(0, first_race_url) # Add the first race bk for better formating and understanding
 
-                
-                for race_date_detail_url in all_race:
-                    yield scrapy.Request(
-                        url=race_date_detail_url,
-                        callback=self.race_detail_page,
-                        meta={
-                            'date_hyphen': response.meta.get('date_hyphen'),
-                            'venue': re.search(r"Racecourse=(ST|HV)", race_date_detail_url).group(1),
-                            'race_no': re.search(r"RaceNo=(\d+)", race_date_detail_url).group(1)
-                        }
-                    )
+                    
+                    for race_date_detail_url in all_race:
+                        yield scrapy.Request(
+                            url=race_date_detail_url,
+                            callback=self.race_detail_page,
+                            meta={
+                                'date_hyphen': response.meta.get('date_hyphen'),
+                                'venue': re.search(r"Racecourse=(ST|HV)", race_date_detail_url).group(1),
+                                'race_no': re.search(r"RaceNo=(\d+)", race_date_detail_url).group(1)
+                            }
+                        )
 
     ''' Step 4: Race detail main page'''
     def race_detail_page(self, response):
 
         # ================================== 場地資訊 ================================== #
         race_info = response.css('div.race_tab table tbody')
-        # data = []
-        
-        # for row in race_info.css('tr'):
-        #     cells = row.css('td::text').getall()
-        #     if cells:  # Ensure the row contains <td> elements
-        #         data.append([cell.strip() for cell in cells])
 
-        # venue_dict = {}
-        
-        # # Extract 班, 米, ratio from row 1
-        # if data[1][0]:
-        #     parts = data[1][0].split(' - ')
-        #     venue_dict['班'] = parts[0] if len(parts) > 0 else ''
-        #     venue_dict['米'] = parts[1].replace('米', '') if len(parts) > 1 else ''
-        #     venue_dict['ratio'] = parts[2] if len(parts) > 2 else ''
-        
-        # # Extract 場地狀況 from row 1
-        # venue_dict['場地狀況'] = data[1][2] if len(data[1]) > 2 else ''
-        
-        # # Extract 讓賽 from row 2
-        # if data[2][0]:
-        #     venue_dict['讓賽'] = data[2][0].replace('讓賽', '')
-        
-        # # Extract 賽道 from row 2
-        # venue_dict['賽道'] = data[2][2] if len(data[2]) > 2 else ''
-        
-        # # Extract HKD from row 3
-        # if data[3][0]:
-        #     hkd_match = re.search(r'[\d,]+', data[3][0])
-        #     venue_dict['HKD'] = hkd_match.group() if hkd_match else ''
-        
-        # # Extract 時間 from row 3
-        # venue_dict['時間'] = [item for item in data[3][2:] if item]
-        
-        # # Not necessary - Extract 分段時間 from row 4
-        # # venue_dict['分段時間'] = [item[:5] for item in data[4][2:] if item]
+        venue_data = {
+            '班次': '未知班次',
+            '距离': '未知距离',
+            'ratio': '未知范围',
+            '賽事級別': '未知級別'
+        }
 
-        # df_venue = pd.DataFrame([{
-        #     '班': venue_dict.get('班', ''),
-        #     '米': venue_dict.get('米', ''),
-        #     'ratio': venue_dict.get('ratio', ''),
-        #     '場地狀況': venue_dict.get('場地狀況', ''),
-        #     '讓賽': venue_dict.get('讓賽', ''),
-        #     '賽道': venue_dict.get('賽道', ''),
-        #     '時間': ' '.join(venue_dict.get('時間', [])),
-        #     # '分段時間': ' '.join(venue_dict.get('分段時間', [])),
-        #     'HKD': venue_dict.get('HKD', '')
-        # }])
+        for table_row in race_info.css('tr'):
+            cells = [cell.strip() for cell in table_row.css('td::text').getall() if cell.strip() !='']
+            
+            key = None
+            semi_column_idx = None
 
-        # print(df_venue.head())
+            for cell in cells:
+                # Separate regex patterns for each part
+                pattern_class = r'第.班'
+                class_match = re.search(pattern_class, cell)
+                if class_match and venue_data['班次'] == '未知班次':  # Only update if still default
+                    venue_data['班次'] = class_match.group(0)
+
+                # 距离 #
+                pattern_distance = r'\d+米'
+                distance_match = re.search(pattern_distance, cell)
+                if distance_match and venue_data['距离'] == '未知距离':  # Only update if still default
+                    venue_data['距离'] = distance_match.group(0)
+
+                # 范围 #
+                pattern_ratio = r'\([^)]+\)'
+                ratio_match = re.search(pattern_ratio, cell)
+                if ratio_match and venue_data['ratio'] == '未知范围':  # Only update if still default
+                    venue_data['ratio'] = ratio_match.group(0)
+
+                # Pattern for capturing race classes like 二級賽, 一級賽, 三級賽, etc.
+                advance_race_class = r'([一二三四五六七八九十]+級賽)\s*-\s*(\d+米)'
+                race_class_match = re.search(advance_race_class, cell)
+                
+                if race_class_match and venue_data['賽事級別'] == '未知級別':  # Only update if still default
+                    venue_data['賽事級別'] = race_class_match.group(1)
+                    # Also set distance if not already set (and still default)
+                    if venue_data['距离'] == '未知距离':
+                        venue_data['距离'] = race_class_match.group(2)
+
+                # 其他資料 #
+                if ':' in cell:
+                    key = cell.replace(':', '').strip()
+                    semi_column_idx = cells.index(cell) + 1
+                    break
+
+            # Control what key to be in the data avoiding schema change in future
+            if key == '場地狀況':
+                venue_data['場地狀況'] = ', '.join(cells[semi_column_idx:])
+
+            elif key == '賽道':
+                venue_data['賽道'] = ', '.join(cells[semi_column_idx:])
+
+            elif key == '時間':
+                venue_data['時間'] = ', '.join(cells[semi_column_idx:])
+
+            elif key == '分段時間':
+                venue_data['分段時間'] = ', '.join(cells[semi_column_idx:])
+
+            # else:
+            #     print(f'new key found: {key}')
+
+
+
+        df_venue_data = pd.DataFrame([venue_data])
+        print(df_venue_data.to_dict(orient='records'))
 
         # ================================== 名次資訊 ================================== #
         # Extract the HTML for the table
@@ -175,7 +194,7 @@ class HKJC_Spider(scrapy.Spider):
         df_race_result = self.add_date_venue_race_num_to_df(df_race_result, response.meta)
         
 
-        print(df_race_result.head())
+        # print(df_race_result.head())
 
         # ================================ 競賽事件報告 ================================ #
         # Extract the HTML for the incidents table
@@ -193,7 +212,7 @@ class HKJC_Spider(scrapy.Spider):
 
         df_race_incidents = self.add_date_venue_race_num_to_df(df_race_incidents, response.meta)
 
-        print(df_race_incidents.head())
+        # print(df_race_incidents.head())
 
 
         # ================================ 勝出馬匹血統 ================================ #
@@ -219,10 +238,4 @@ class HKJC_Spider(scrapy.Spider):
         # Create a Pandas DataFrame
         df_win_horse_blood = pd.DataFrame(data)
         df_win_horse_blood = self.add_date_venue_race_num_to_df(df_win_horse_blood, response.meta)
-        print(df_win_horse_blood.head())
-
-
-        # Pass the data to pipelines
-        pass
-        # yield {
-        # }
+        # print(df_win_horse_blood.head())
