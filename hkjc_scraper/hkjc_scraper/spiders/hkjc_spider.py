@@ -179,8 +179,7 @@ class HKJC_Spider(scrapy.Spider):
             #     print(f'new key found: {key}')
 
 
-
-        df_venue_data = pd.DataFrame([venue_data])
+        df_venue_data = self.add_date_venue_race_num_to_df(pd.DataFrame([venue_data]), response.meta)
         print(df_venue_data.to_dict(orient='records'))
 
         # ================================== 名次資訊 ================================== #
@@ -194,7 +193,7 @@ class HKJC_Spider(scrapy.Spider):
         df_race_result = self.add_date_venue_race_num_to_df(df_race_result, response.meta)
         
 
-        # print(df_race_result.head())
+        print(df_race_result.head().to_dict(orient='records'))
 
         # ================================ 競賽事件報告 ================================ #
         # Extract the HTML for the incidents table
@@ -212,7 +211,7 @@ class HKJC_Spider(scrapy.Spider):
 
         df_race_incidents = self.add_date_venue_race_num_to_df(df_race_incidents, response.meta)
 
-        # print(df_race_incidents.head())
+        print(df_race_incidents.head().to_dict(orient='records'))
 
 
         # ================================ 勝出馬匹血統 ================================ #
@@ -238,4 +237,4 @@ class HKJC_Spider(scrapy.Spider):
         # Create a Pandas DataFrame
         df_win_horse_blood = pd.DataFrame(data)
         df_win_horse_blood = self.add_date_venue_race_num_to_df(df_win_horse_blood, response.meta)
-        # print(df_win_horse_blood.head())
+        print(df_win_horse_blood.head().to_dict(orient='records'))
