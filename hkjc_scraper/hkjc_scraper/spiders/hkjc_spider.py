@@ -118,7 +118,11 @@ class HKJC_Spider(scrapy.Spider):
             '班次': '未知班次',
             '距离': '未知距离',
             'ratio': '未知范围',
-            '賽事級別': '未知級別'
+            '賽事級別': '未知級別',
+            '場地狀況': '未知',
+            '賽道': '未知',
+            '時間': '未知',
+            '分段時間': '未知'
         }
 
         for table_row in race_info.css('tr'):
@@ -190,6 +194,9 @@ class HKJC_Spider(scrapy.Spider):
         # Use pandas to read the HTML table
         df_race_result = pd.read_html(race_results)[0]
 
+        # Replace with normal space
+        df_race_result['馬名'] = df_race_result['馬名'].str.replace('\xa0', ' ', regex=False)
+
         df_race_result = self.add_date_venue_race_num_to_df(df_race_result, response.meta)
         
 
@@ -210,6 +217,7 @@ class HKJC_Spider(scrapy.Spider):
         )
 
         df_race_incidents = self.add_date_venue_race_num_to_df(df_race_incidents, response.meta)
+        df_race_incidents['馬名'] = df_race_incidents['馬名'].str.replace('\xa0', ' ', regex=False)
 
         print(df_race_incidents.head().to_dict(orient='records'))
 
@@ -238,3 +246,41 @@ class HKJC_Spider(scrapy.Spider):
         df_win_horse_blood = pd.DataFrame(data)
         df_win_horse_blood = self.add_date_venue_race_num_to_df(df_win_horse_blood, response.meta)
         print(df_win_horse_blood.head().to_dict(orient='records'))
+
+
+        # ================================ 分段時間位置 ================================ #
+        race_length_position_href = response.xpath('//*[@id="innerContent"]/div[2]/div[3]/p[2]/a/@href').get()
+
+        full_race_length_position_url = f"{self.race_href_base_url}{race_length_position_href}"
+
+        yield scrapy.Request(
+            url=full_race_length_position_url,
+            callback=self.race_length_position_page,
+            meta={
+                'date_hyphen': response.meta.get('date_hyphen'),
+                'venue': response.meta.get('venue'),
+                'race_no': response.meta.get('race_no'),
+            }
+        )
+        # ================================ 沿途走位評述 ================================ #
+        race_gear_comment_href = response.xpath('//*[@id="racerunningpositionphotos"]/p[2]/a/@href').get()
+        
+        race_gear_comment_url = f"{self.race_href_base_url}{race_gear_comment_href}"
+
+        yield scrapy.Request(
+            url=race_gear_comment_url,
+            callback=self.race_gear_comment_page,
+            meta={
+                'date_hyphen': response.meta.get('date_hyphen'),
+                'venue': response.meta.get('venue'),
+                'race_no': response.meta.get('race_no'),
+            }
+        )
+    
+    '''Step5a: 分段時間位置'''
+    def race_length_position_page(self, response):
+        pass
+    
+    '''Step5b: 沿途走位評述'''
+    def race_gear_comment_page(self, response):
+        pass
