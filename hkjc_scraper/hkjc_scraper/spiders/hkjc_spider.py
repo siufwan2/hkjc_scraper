@@ -184,7 +184,7 @@ class HKJC_Spider(scrapy.Spider):
 
 
         df_venue_data = self.add_date_venue_race_num_to_df(pd.DataFrame([venue_data]), response.meta)
-        print(df_venue_data.to_dict(orient='records'))
+        # print(df_venue_data.to_dict(orient='records'))
 
         # ================================== 名次資訊 ================================== #
         # Extract the HTML for the table
@@ -200,7 +200,7 @@ class HKJC_Spider(scrapy.Spider):
         df_race_result = self.add_date_venue_race_num_to_df(df_race_result, response.meta)
         
 
-        print(df_race_result.head().to_dict(orient='records'))
+        # print(df_race_result.head().to_dict(orient='records'))
 
         # ================================ 競賽事件報告 ================================ #
         # Extract the HTML for the incidents table
@@ -219,7 +219,7 @@ class HKJC_Spider(scrapy.Spider):
         df_race_incidents = self.add_date_venue_race_num_to_df(df_race_incidents, response.meta)
         df_race_incidents['馬名'] = df_race_incidents['馬名'].str.replace('\xa0', ' ', regex=False)
 
-        print(df_race_incidents.head().to_dict(orient='records'))
+        # print(df_race_incidents.head().to_dict(orient='records'))
 
 
         # ================================ 勝出馬匹血統 ================================ #
@@ -245,7 +245,7 @@ class HKJC_Spider(scrapy.Spider):
         # Create a Pandas DataFrame
         df_win_horse_blood = pd.DataFrame(data)
         df_win_horse_blood = self.add_date_venue_race_num_to_df(df_win_horse_blood, response.meta)
-        print(df_win_horse_blood.head().to_dict(orient='records'))
+        # print(df_win_horse_blood.head().to_dict(orient='records'))
 
 
         # ================================ 分段時間位置 ================================ #
@@ -279,7 +279,46 @@ class HKJC_Spider(scrapy.Spider):
     
     '''Step5a: 分段時間位置'''
     def race_length_position_page(self, response):
-        pass
+        race_time_position_tb = response.xpath('//*[@id="Race1"]/table')
+        trows = race_time_position_tb.xpath('tbody/tr')
+        race_time_position_data = []
+
+        for trow in trows:
+            cell_values_lst = trow.xpath('td')
+            cell_value_dict = {}
+
+            for cell_idx, cell_value in enumerate(cell_values_lst):
+                # Get all text content from the cell
+                cell_text = cell_value.xpath('string()').get().strip()
+
+                if cell_idx == 0:
+                    cell_value_dict['過終點次序'] = cell_text
+                
+                elif cell_idx == 1:
+                    cell_value_dict['馬號'] = cell_text
+                
+                elif cell_idx == 2:
+                    cell_value_dict['馬名'] = cell_value.xpath('a/text()').get().strip().replace('\xa0', ' ')
+                    cell_value_dict['horse_detail_url'] = f"{self.race_href_base_url}{cell_value.xpath('a/@href').get()}"
+                
+                elif 3 <= cell_idx <= 8:
+                    # Handle segments
+                    segment_data =  {'position': None, 'time': None} \
+                        if cell_value.xpath('img') \
+                            else {
+                                'position': int(cell_value.xpath('.//span[@class="f_fl"]/text()').get().strip()) if cell_value.xpath('.//span[@class="f_fl"]/text()').get() else None,
+                                'time': float(cell_value.xpath('p[not(@class="f_clear")]/text()').get().strip()) if cell_value.xpath('p[not(@class="f_clear")]/text()').get() else None,
+                            }
+                    
+                    cell_value_dict[f'第{cell_idx-2}段'] = segment_data
+                elif cell_idx == 9:
+                    cell_value_dict['final_time'] = cell_text
+
+            race_time_position_data.append(cell_value_dict)
+
+        df_race_time_position = pd.DataFrame(race_time_position_data)
+        df_race_time_position = self.add_date_venue_race_num_to_df(df_race_time_position, response.meta)
+        # print(df_race_time_position.head().to_dict(orient='records'))
     
     '''Step5b: 沿途走位評述'''
     def race_gear_comment_page(self, response):
