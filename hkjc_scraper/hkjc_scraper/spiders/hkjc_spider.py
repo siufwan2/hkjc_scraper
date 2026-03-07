@@ -295,6 +295,9 @@ class HKJC_Spider(scrapy.Spider):
 
         yield {
             'type': 'race result',
+            'date_hyphen': response.meta.get('date_hyphen'),
+            'venue': response.meta.get('venue'),
+            'race_no': response.meta.get('race_no'),
             'data': race_result_table_data
         }
 
@@ -386,6 +389,9 @@ class HKJC_Spider(scrapy.Spider):
         
         yield {
             'type': 'race corunning result',
+            'date_hyphen': response.meta.get('date_hyphen'),
+            'venue': response.meta.get('venue'),
+            'race_no': response.meta.get('race_no'),
             'data': corunning_data
         }
 
@@ -494,6 +500,9 @@ class HKJC_Spider(scrapy.Spider):
 
         yield {
             'type': 'race sectional time result',
+            'date_hyphen': response.meta.get('date_hyphen'),
+            'venue': response.meta.get('venue'),
+            'race_no': response.meta.get('race_no'),
             'data': sectional_data
         }
 
