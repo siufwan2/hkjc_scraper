@@ -1,19 +1,15 @@
 import scrapy
-from datetime import datetime
+from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 import configparser
-import os
 import re
 from urllib.parse import urljoin
 
-import pandas as pd
-from snownlp import SnowNLP
-
-class HKJC_Spider(scrapy.Spider):
-    name = "hkjc_spider"
+class HKJC_Race_Spider(scrapy.Spider):
+    name = "hkjc_race_spider"
 
     def __init__(self, *args, **kwargs):
-        super(HKJC_Spider, self).__init__(*args, **kwargs)
+        super(HKJC_Race_Spider, self).__init__(*args, **kwargs)
 
         ''' Init : Read the config '''
         config = configparser.ConfigParser()
@@ -21,14 +17,37 @@ class HKJC_Spider(scrapy.Spider):
         self.race_result_base_url = config['input']['race_result_base_url']
         self.race_hkjc_base_url = config['input']['race_hkjc_base_url']
         self.output_base_path = config['output']['race_output_base_path']
+        self.scrape_method = config['input']['scrape_method']
+        print(self.scrape_method)
+
         self.logger.info(f'The scraped data will be stored to path: {self.output_base_path}')
 
         ''' Init : form race date urls list to scrape '''
-        today = datetime.now()
-        past_X_days = [(today - relativedelta(days=i + 1)) for i in range(int(config['input']['past_x_day']))]
-        self.race_date_urls = [
-            {date.strftime("%Y_%m_%d"): f"{self.race_result_base_url}?RaceDate={date.strftime('%Y/%m/%d')}"} for date in past_X_days
-        ]
+        if self.scrape_method == 'day_range':
+            # Using config with string dates
+            self.start_date = datetime.strptime(config['input']['start_date'], '%Y-%m-%d')
+            self.end_date = datetime.strptime(config['input']['end_date'], '%Y-%m-%d')
+
+            # Generate all dates between start and end (inclusive)
+            date_range = []
+            current_date = self.start_date
+            while current_date <= self.end_date:
+                date_range.append(current_date)
+                current_date += timedelta(days=1)
+
+            # Create URLs for each date
+            self.race_date_urls = [
+                {date.strftime("%Y_%m_%d"): f"{self.race_result_base_url}?RaceDate={date.strftime('%Y/%m/%d')}"} 
+                for date in date_range
+            ]
+
+        # To be run automatically in pipeline
+        elif self.scrape_method == 'past_days':
+            today = datetime.now()
+            past_X_days = [(today - relativedelta(days=i + 1)) for i in range(int(config['input']['past_x_day']))]
+            self.race_date_urls = [
+                {date.strftime("%Y_%m_%d"): f"{self.race_result_base_url}?RaceDate={date.strftime('%Y/%m/%d')}"} for date in past_X_days
+            ]
 
         self.logger.info(len(self.race_date_urls), 'urls to check')
 
