@@ -10,7 +10,7 @@ class HKJC_Race_Spider(scrapy.Spider):
 
     def __init__(self, *args, **kwargs):
         super(HKJC_Race_Spider, self).__init__(*args, **kwargs)
-
+        self.spider_type = "race"
         ''' Init : Read the config '''
         config = configparser.ConfigParser()
         config.read('./scrapy.cfg')
@@ -49,7 +49,7 @@ class HKJC_Race_Spider(scrapy.Spider):
                 {date.strftime("%Y_%m_%d"): f"{self.race_result_base_url}?RaceDate={date.strftime('%Y/%m/%d')}"} for date in past_X_days
             ]
 
-        self.logger.info(len(self.race_date_urls), 'urls to check')
+        self.logger.info(f"{len(self.race_date_urls)} urls to check")
 
     ''' Entry Point '''
     def start_requests(self):
