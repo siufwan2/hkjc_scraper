@@ -34,13 +34,13 @@ class HKJC_Horse_Spider(scrapy.Spider):
     
     def check_horse(self, response):
         item = {
-            '馬名': '',
-            '馬匹編號': '',
-            '出生地': '',
-            '馬齡': '0',
-            '毛色': '',
-            '性別': '',
-            '進口類別': '',
+            '馬名': '未知',
+            '馬匹編號': '未知',
+            '出生地': '未知',
+            '馬齡': '未知',
+            '毛色': '未知',
+            '性別': '未知',
+            '進口類別': '未知',
             '今季獎金': '0',
             '總獎金': '0',
             '冠': '0',
@@ -48,13 +48,14 @@ class HKJC_Horse_Spider(scrapy.Spider):
             '季': '0',
             '總出賽次數': '0',
             '最近十個賽馬日出賽場數': '0',
-            '現在位置': '',
-            '進口日期': '',
+            '現在位置': '未知',
+            '進口日期': '未知',
             '現時評分': '0',
             '季初評分': '0',
-            '父系': '',
-            '母系': '',
-            '外祖父': ''
+            '父系': '未知',
+            '母系': '未知',
+            '外祖父': '未知',
+            '馬匹狀態': '未知'
         }
 
         title_element = response.css('.subsubheader .title_text::text').get()
@@ -64,6 +65,9 @@ class HKJC_Horse_Spider(scrapy.Spider):
             if match:
                 item['馬名'] = match.group(1).strip()
                 item['馬匹編號'] = match.group(2).strip()
+                # Check if there's a third group (second parentheses)
+                if match.group(3):
+                    item['馬匹狀態'] = match.group(3).strip()
 
         # Left table scraping
         left_table_rows = response.css('.table_top_right.table_eng_text tbody tr')
@@ -139,7 +143,6 @@ class HKJC_Horse_Spider(scrapy.Spider):
                     item['季初評分'] = value
                 elif "父系" in key and not '同父系馬' in key:
                     sire_text = row.css('td:last-child a::text').get()
-                    # print(sire_text)
                     item['父系'] = sire_text.strip() if sire_text else value
                 elif "母系" in key:
                     item['母系'] = value
