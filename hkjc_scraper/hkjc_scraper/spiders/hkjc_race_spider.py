@@ -212,19 +212,21 @@ class HKJC_Race_Spider(scrapy.Spider):
             row_data['馬匹編號'] = horse_code
             row_data['馬名連結'] = urljoin(self.race_hkjc_base_url, horse_name_cell.xpath('.//a/@href').get())
             
-            # Jockey
+            # Jockey (If retire then is text instead of a)
             jockey_cell = cells[3]
             jockey_name = jockey_cell.xpath('.//a/text()').get()
+            jockey_text = jockey_cell.xpath('.//text()').get()
             jockey_link = jockey_cell.xpath('.//a/@href').get()
-            row_data['騎師'] = jockey_name
-            row_data['騎師連結'] = urljoin(self.race_hkjc_base_url, jockey_link)
+            row_data['騎師'] = jockey_name if jockey_name else (jockey_text.strip() if jockey_text else '未知')
+            row_data['騎師連結'] = urljoin(self.race_hkjc_base_url, jockey_link) if jockey_link else '未知'
             
             # Trainer
             trainer_cell = cells[4]
             trainer_name = trainer_cell.xpath('.//a/text()').get()
+            trainer_text = trainer_cell.xpath('.//text()').get()
             trainer_link = trainer_cell.xpath('.//a/@href').get()
-            row_data['練馬師'] = trainer_name
-            row_data['練馬師連結'] = urljoin(self.race_hkjc_base_url, trainer_link)
+            row_data['練馬師'] = trainer_name if trainer_name else (trainer_text.strip() if trainer_text else '未知')
+            row_data['練馬師連結'] = urljoin(self.race_hkjc_base_url, trainer_link) if trainer_link else '未知'
             
             # Actual Weight
             row_data['實際負磅'] = cells[5].xpath('string()').get().strip()
@@ -257,48 +259,82 @@ class HKJC_Race_Spider(scrapy.Spider):
 
         # ================================ 3. 競賽事件報告 ================================ #
         # Get all rows from tbody
+        # Since year 2023, they change the visual format to table row
         incident_rows = response.xpath('//table[@class="f_tac table_bd"]/tbody/tr')
 
         # Store all incident data
         incidents_data = []
 
-        for row in incident_rows:
-            # Extract all cells
-            cells = row.xpath('.//td')
-            
-            incident_record = {}
-            
-            # Position (名次)
-            position = cells[0].xpath('string()').get().strip()
-            incident_record['名次'] = position
-            
-            # Horse Number (馬號)
-            horse_number = cells[1].xpath('string()').get().strip()
-            incident_record['馬號'] = horse_number
-            
-            # Horse Name (馬名) - with link and code
-            horse_cell = cells[2]
-            horse_name = horse_cell.xpath('.//a/text()').get()
-            horse_link = horse_cell.xpath('.//a/@href').get()
-            
-            # Extract horse code from the text in parentheses
-            horse_text = horse_cell.xpath('string()').get()
-            horse_code_match = re.search(r'\(([^)]+)\)', horse_text)
-            horse_code = horse_code_match.group(1) if horse_code_match else None
-            
-            incident_record['馬名'] = horse_name
-            incident_record['馬匹編號'] = horse_code
-            incident_record['馬名連結'] = horse_link
-            
-            # Race Incident (競賽事件)
-            incident_text = cells[3].xpath('string()').get().strip()
-            # Clean up whitespace
-            incident_text = ' '.join(incident_text.split())
-            incident_record['競賽事件'] = incident_text
-            
-            # Check for veterinary supplements
-            incidents_data.append(incident_record)
+        if incident_rows:
+            for row in incident_rows:
+                # Extract all cells
+                cells = row.xpath('.//td')
+                
+                incident_record = {}
+                
+                # Position (名次)
+                position = cells[0].xpath('string()').get().strip()
+                incident_record['名次'] = position
+                
+                # Horse Number (馬號)
+                horse_number = cells[1].xpath('string()').get().strip()
+                incident_record['馬號'] = horse_number
+                
+                # Horse Name (馬名) - with link and code
+                horse_cell = cells[2]
+                horse_name = horse_cell.xpath('.//a/text()').get()
+                horse_link = horse_cell.xpath('.//a/@href').get()
+                
+                # Extract horse code from the text in parentheses
+                horse_text = horse_cell.xpath('string()').get()
+                horse_code_match = re.search(r'\(([^)]+)\)', horse_text)
+                horse_code = horse_code_match.group(1) if horse_code_match else '未知'
+                
+                incident_record['馬名'] = horse_name
+                incident_record['馬匹編號'] = horse_code
+                incident_record['馬名連結'] = horse_link
+                
+                # Race Incident (競賽事件)
+                incident_text = cells[3].xpath('string()').get().strip()
+                # Clean up whitespace
+                incident_text = ' '.join(incident_text.split())
+                incident_record['競賽事件'] = incident_text
+                
+                # Check for veterinary supplements
+                incidents_data.append(incident_record)
         
+        # before year 2023, the visual format is not in table format and each incident is put inside one big <p> element
+        else:
+            incident_rows = response.xpath('//*[@id="innerContent"]/div[2]/div[7]/p[2]')
+
+            # Get all text nodes directly (excluding the <br/> tags)
+            incidents = incident_rows.xpath('.//text()').getall()
+
+            # Clean up each incident
+            incidents = [incident.strip() for incident in incidents if incident.strip()]
+
+            # Check horse by horse
+            for race_result_data in race_result_table_data:
+                related_incident_text = ''
+                # Check incidents by incidents
+                for incident in incidents:
+                    if race_result_data['馬名'] in incident \
+                        or race_result_data['騎師'] in incident \
+                        or race_result_data['練馬師'] in incident:
+
+                        related_incident_text += incident
+                        related_incident_text += '\n'
+
+                incidents_data.append({
+                    '名次': race_result_data['名次'],
+                    '馬號': race_result_data['馬號'],
+                    '馬名': race_result_data['馬名'] ,
+                    '馬匹編號': race_result_data['馬匹編號'],
+                    '馬名連結': race_result_data['馬名連結'],
+                    '競賽事件': related_incident_text if related_incident_text else '無特別報告。'
+                })
+
+
 
         for result_row in race_result_table_data:
             # MERGE venue, rank, date
@@ -381,7 +417,7 @@ class HKJC_Race_Spider(scrapy.Spider):
             # Extract horse code from parentheses
             horse_text = horse_cell.xpath('string()').get()
             horse_code_match = re.search(r'\(([^)]+)\)', horse_text)
-            horse_code = horse_code_match.group(1) if horse_code_match else None
+            horse_code = horse_code_match.group(1) if horse_code_match else '未知'
             
             performance_record['馬名'] = horse_name
             performance_record['馬匹編號'] = horse_code
@@ -393,7 +429,7 @@ class HKJC_Race_Spider(scrapy.Spider):
             
             # Gear/Equipment (配備)
             gear = cells[4].xpath('string()').get().strip()
-            performance_record['配備'] = gear if gear != '--' else None
+            performance_record['配備'] = gear if gear != '--' else gear
             
             # Performance Review (走勢評述)
             review = cells[5].xpath('string()').get().strip()
@@ -453,7 +489,7 @@ class HKJC_Race_Spider(scrapy.Spider):
             
             # Extract horse code from text (store separately)
             horse_code_match = re.search(r'\(([^)]+)\)', full_text)
-            horse_code = horse_code_match.group(1) if horse_code_match else None
+            horse_code = horse_code_match.group(1) if horse_code_match else '未知'
             
             # Final time
             finish_time = cells[-1].xpath('string()').get().strip()
