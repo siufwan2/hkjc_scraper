@@ -61,7 +61,7 @@ class HKJC_Horse_Spider(scrapy.Spider):
         title_element = response.css('.subsubheader .title_text::text').get()
         if title_element:
             # format usually like: "燭光晚餐 (J468)"
-            match = re.search(r'(.+?)\s*\((.+?)\)', title_element)
+            match = re.search(r'(.+?)\s*\((.+?)\)(?:\s*\((.+?)\))?', title_element)
             if match:
                 item['馬名'] = match.group(1).strip()
                 item['馬匹編號'] = match.group(2).strip()
